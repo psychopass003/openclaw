@@ -30,6 +30,7 @@
     ],
     "profiles": {
       "openclaw": {
+        "cdpPort": 18792,
         "color": "#0000ff"
       }
     }
