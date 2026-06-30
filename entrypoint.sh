@@ -95,9 +95,9 @@ fi
 # 6. Start OpenClaw Gateway in the background (Port 18789)
 echo "Starting OpenClaw Gateway..."
 if command -v openclaw &>/dev/null; then
-    openclaw gateway &
+    openclaw gateway --allow-unconfigured &
 elif [ -f /app/bin/openclaw ]; then
-    /app/bin/openclaw gateway &
+    /app/bin/openclaw gateway --allow-unconfigured &
 else
     node /app/dist/index.js &
 fi
