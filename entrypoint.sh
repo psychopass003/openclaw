@@ -85,11 +85,36 @@ else
     echo "WARNING: SearXNG modules not found. Skipping auto-start."
 fi
 
-# 5. Check if persistent config already exists; copy template only if missing
-# This preserves any runtime changes you make via the web dashboard.
-if [ ! -f "$OPENCLAW_STATE_DIR/openclaw.json" ] && [ -f /app/openclaw.json ]; then
-    cp /app/openclaw.json "$OPENCLAW_STATE_DIR/openclaw.json"
-    chmod 777 "$OPENCLAW_STATE_DIR/openclaw.json" || true
+# 5. Config Setup with Template Hash Matching
+# We calculate a hash of the Git repository's template config.
+# If a new commit updates openclaw.json, we force-apply the new settings.
+# Otherwise, we preserve the user's custom changes made via the Web UI dashboard.
+if [ -f /app/openclaw.json ]; then
+    TEMPLATE_HASH=$(python3 -c "import hashlib; print(hashlib.md5(open('/app/openclaw.json','rb').read()).hexdigest())")
+    COPY_NEEDED=false
+    
+    if [ ! -f "$OPENCLAW_STATE_DIR/openclaw.json" ]; then
+        echo "No config found in state directory. Copying template..."
+        COPY_NEEDED=true
+    elif [ -f "$OPENCLAW_STATE_DIR/.config_hash" ]; then
+        LAST_HASH=$(cat "$OPENCLAW_STATE_DIR/.config_hash")
+        if [ "$TEMPLATE_HASH" != "$LAST_HASH" ]; then
+            echo "Detected updated openclaw.json in Git repository. Force-updating config..."
+            COPY_NEEDED=true
+        fi
+    else
+        # Persistent config exists but hash file is missing (e.g., migration from older version)
+        # We overwrite to guarantee we clear out any older clobbered configurations.
+        echo "Config hash tracker missing. Restoring config from repository template..."
+        COPY_NEEDED=true
+    fi
+    
+    if [ "$COPY_NEEDED" = "true" ]; then
+        cp /app/openclaw.json "$OPENCLAW_STATE_DIR/openclaw.json"
+        echo "$TEMPLATE_HASH" > "$OPENCLAW_STATE_DIR/.config_hash"
+        chmod 777 "$OPENCLAW_STATE_DIR/openclaw.json" || true
+        chmod 777 "$OPENCLAW_STATE_DIR/.config_hash" || true
+    fi
 fi
 
 # 6. Start OpenClaw Gateway in the background (Port 18789)
