@@ -38,6 +38,9 @@
   "duckduckgo": {
     "enabled": true
   },
+  "memory": {
+    "backend": "builtin"
+  },
   "gateway": {
     "mode": "local",
     "port": 18789,
