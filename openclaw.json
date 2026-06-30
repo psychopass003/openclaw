@@ -21,7 +21,7 @@
     "headless": true,
     "profiles": {
       "openclaw": {
-        "color": "blue",
+        "color": "0000ff",
         "extraArgs": [
           "--no-sandbox",
           "--disable-gpu",
@@ -36,10 +36,6 @@
   },
   "duckduckgo": {
     "enabled": true
-  },
-  "memory": {
-    "enabled": true,
-    "backend": "builtin"
   },
   "gateway": {
     "mode": "local",
