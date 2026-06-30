@@ -1,0 +1,47 @@
+{
+  "llm": {
+    "provider": "mistral",
+    "apiKey": "${MISTRAL_API_KEY}",
+    "model": "mistral/mistral-large-latest",
+    "fallbackModels": [
+      "mistral/mistral-medium-latest",
+      "mistral/mistral-small-latest"
+    ]
+  },
+  "plugins": {
+    "allow": [
+      "browser",
+      "duckduckgo",
+      "memory"
+    ]
+  },
+  "browser": {
+    "enabled": true,
+    "defaultProfile": "openclaw",
+    "headless": true,
+    "profiles": {
+      "openclaw": {
+        "extraArgs": [
+          "--no-sandbox",
+          "--disable-gpu",
+          "--disable-software-rasterizer",
+          "--disable-dev-shm-usage",
+          "--js-flags=--max-old-space-size=2048",
+          "--disable-extensions-except=/app/extensions/ubol,/app/extensions/videodownloader",
+          "--load-extension=/app/extensions/ubol,/app/extensions/videodownloader"
+        ]
+      }
+    }
+  },
+  "duckduckgo": {
+    "enabled": true
+  },
+  "memory": {
+    "enabled": true,
+    "backend": "sqlite"
+  },
+  "gateway": {
+    "port": 18789,
+    "token": "${OPENCLAW_GATEWAY_TOKEN}"
+  }
+}

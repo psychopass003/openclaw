@@ -1,0 +1,28 @@
+# SearXNG configuration settings.yml
+# Securely tuned for Hugging Face container constraints
+
+use_default_settings: true
+
+server:
+  port: 8888
+  bind_address: "127.0.0.1"   # Strictly bind to localhost to prevent external access
+  secret_key: "default-searxng-local-secret-for-openclaw"  # Place standard secret key
+  limiter: false              # Disable rate limiter for local gateway requests
+
+search:
+  safe_search: 0              # 0 = None, 1 = Moderate, 2 = Strict (Unfiltered search queries)
+  autocomplete: ""
+  relevant_to_search: true
+
+# Enable typical search engines
+engines:
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+  - name: wikipedia
+    engine: wikipedia
+    shortcut: wp
+  - name: google
+    engine: google
+    shortcut: go
+    disabled: false
