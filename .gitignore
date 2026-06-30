@@ -1,0 +1,24 @@
+# Hugging Face Space Git Exclusions (Exceptions)
+state/
+state-backup.tar.gz*
+*.gpg
+openclaw.db
+openclaw.db-journal
+openclaw.db-wal
+.env
+.env.local
+*.key
+*.pem
+*.token
+*secrets*
+logs/
+*.log
+tmp/
+/temp
+node_modules/
+dist/
+build/
+.npm
+.pnpm-debug.log
+.DS_Store
+Thumbs.db
