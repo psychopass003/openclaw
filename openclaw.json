@@ -19,18 +19,18 @@
     "enabled": true,
     "defaultProfile": "openclaw",
     "headless": true,
+    "extraArgs": [
+      "--no-sandbox",
+      "--disable-gpu",
+      "--disable-software-rasterizer",
+      "--disable-dev-shm-usage",
+      "--js-flags=--max-old-space-size=2048",
+      "--disable-extensions-except=/app/extensions/ubol,/app/extensions/videodownloader",
+      "--load-extension=/app/extensions/ubol,/app/extensions/videodownloader"
+    ],
     "profiles": {
       "openclaw": {
-        "color": "0000ff",
-        "extraArgs": [
-          "--no-sandbox",
-          "--disable-gpu",
-          "--disable-software-rasterizer",
-          "--disable-dev-shm-usage",
-          "--js-flags=--max-old-space-size=2048",
-          "--disable-extensions-except=/app/extensions/ubol,/app/extensions/videodownloader",
-          "--load-extension=/app/extensions/ubol,/app/extensions/videodownloader"
-        ]
+        "color": "#0000ff"
       }
     }
   },
