@@ -13,7 +13,8 @@ ENV PORT=7860
 # - ffmpeg: Required by yt-dlp to merge video streams (1080p+)
 # - sqlite3: To perform database chat cleanups
 # - gnupg: For GPG AES-256 backup encryption
-RUN apt-get update && apt-get install -y \
+# - Playwright Chromium dependencies explicitly listed to avoid using Playwright's runtime sudo install script
+RUN apt-get update && apt-get install -y --no-install-recommends \
     nginx \
     git \
     curl \
@@ -23,6 +24,23 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     sqlite3 \
     gnupg \
+    sudo \
+    libglib2.0-0 \
+    libnss3 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libdbus-1-3 \
+    libxcb1 \
+    libxkbcommon0 \
+    libxdamage1 \
+    libxcomposite1 \
+    libxrandr2 \
+    libgbm1 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libasound2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install yt-dlp (industry-standard command line video downloader)
@@ -38,8 +56,8 @@ RUN npm install -g openclaw@latest
 RUN mkdir -p /app/state /app/playwright-cache /app/extensions/ubol /app/extensions/videodownloader && \
     chmod -R 777 /app /var/log/nginx /var/lib/nginx /etc/nginx
 
-# Install Playwright browser dependencies (critical to avoid shared library errors on headless Chromium boot)
-RUN npx playwright install --with-deps chromium
+# Install Playwright browser binary (dependencies already loaded above via apt-get)
+RUN npx playwright install chromium
 
 # Download and unzip uBlock Origin Lite (Manifest V3 Edition)
 RUN curl -L -o /tmp/ubol.zip https://github.com/uBlockOrigin/uBOL-home/releases/download/uBOL_0.1.26.11029/uBOL_0.1.26.11029.chromium.zip && \
