@@ -41,6 +41,7 @@
     "backend": "sqlite"
   },
   "gateway": {
+    "mode": "local",
     "port": 18789,
     "token": "${OPENCLAW_GATEWAY_TOKEN}"
   }
