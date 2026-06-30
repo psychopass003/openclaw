@@ -45,6 +45,12 @@
     "port": 18789,
     "auth": {
       "token": "${OPENCLAW_GATEWAY_TOKEN}"
+    },
+    "controlUi": {
+      "allowedOrigins": [
+        "${SPACE_URL}",
+        "https://johnwick003-openclaw.hf.space"
+      ]
     }
   }
 }
