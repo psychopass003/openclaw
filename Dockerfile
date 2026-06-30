@@ -31,8 +31,9 @@ RUN npm install -g openclaw@latest
 RUN mkdir -p /app/state /app/extensions/ubol /app/extensions/videodownloader && \
     chmod -R 777 /app /var/log/nginx /var/lib/nginx /etc/nginx
 
-# Download and unzip uBlock Origin Lite (Manifest V3 Edition)
-RUN curl -L -o /tmp/ubol.zip https://github.com/uBlockOrigin/uBOL-home/releases/download/uBOL_0.1.26.11029/uBOL_0.1.26.11029.chromium.zip && \
+# Download and unzip the latest uBlock Origin Lite (Manifest V3 Edition) dynamically from GitHub Releases API
+RUN LATEST_UBOL_URL=$(python3 -c "import urllib.request, json; res = urllib.request.urlopen('https://api.github.com/repos/uBlockOrigin/uBOL-home/releases/latest'); data = json.loads(res.read().decode()); print([a['browser_download_url'] for a in data['assets'] if 'chromium.zip' in a['name']][0])") && \
+    curl -L -o /tmp/ubol.zip "$LATEST_UBOL_URL" && \
     unzip /tmp/ubol.zip -d /app/extensions/ubol && \
     rm /tmp/ubol.zip
 
