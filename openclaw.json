@@ -21,6 +21,7 @@
     "headless": true,
     "profiles": {
       "openclaw": {
+        "color": "blue",
         "extraArgs": [
           "--no-sandbox",
           "--disable-gpu",
@@ -38,11 +39,13 @@
   },
   "memory": {
     "enabled": true,
-    "backend": "sqlite"
+    "backend": "builtin"
   },
   "gateway": {
     "mode": "local",
     "port": 18789,
-    "token": "${OPENCLAW_GATEWAY_TOKEN}"
+    "auth": {
+      "token": "${OPENCLAW_GATEWAY_TOKEN}"
+    }
   }
 }
