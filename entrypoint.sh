@@ -139,13 +139,13 @@ fi
             request_id=$(openclaw devices approve --latest 2>/dev/null | grep -E -o '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}' | head -n 1)
             if [ -n "$request_id" ]; then
                 echo "Auto-Approval Daemon: Found pending request $request_id. Approving..."
-                openclaw devices approve "$request_id" || true
+                yes | openclaw devices approve "$request_id" || true
             fi
         elif [ -f /app/bin/openclaw ]; then
             request_id=$(/app/bin/openclaw devices approve --latest 2>/dev/null | grep -E -o '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}' | head -n 1)
             if [ -n "$request_id" ]; then
                 echo "Auto-Approval Daemon: Found pending request $request_id. Approving..."
-                /app/bin/openclaw devices approve "$request_id" || true
+                yes | /app/bin/openclaw devices approve "$request_id" || true
             fi
         fi
         sleep 5
