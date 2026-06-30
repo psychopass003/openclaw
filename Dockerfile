@@ -1,4 +1,4 @@
-# Use official Microsoft Playwright image based on Ubuntu 24.04 (Noble), which pre-installs Node 22 LTS, browsers, and libraries
+# Use official Microsoft Playwright image based on Ubuntu 24.04 (Noble), which pre-installs Node LTS, browsers, and libraries
 FROM mcr.microsoft.com/playwright:v1.49.0-noble
 
 # Set environment variables (inherits PLAYWRIGHT_BROWSERS_PATH=/ms-playwright from base image)
@@ -23,6 +23,9 @@ RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o 
     chmod a+rx /usr/local/bin/yt-dlp
 
 WORKDIR /app
+
+# Upgrade Node.js inside the container to v22.19.0 to satisfy OpenClaw's engine dependency requirement
+RUN npm install -g n && n 22.19.0 && ln -sf /usr/local/bin/node /usr/bin/node
 
 # Install OpenClaw globally from the stable NPM registry
 RUN npm install -g openclaw@latest
