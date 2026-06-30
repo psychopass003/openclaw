@@ -1,5 +1,5 @@
-# Use official Microsoft Playwright image (pre-installed Node, browsers, and libraries)
-FROM mcr.microsoft.com/playwright:v1.45.0-jammy
+# Use official Microsoft Playwright image based on Ubuntu 24.04 (Noble), which pre-installs Node 22 LTS, browsers, and libraries
+FROM mcr.microsoft.com/playwright:v1.49.0-noble
 
 # Set environment variables (inherits PLAYWRIGHT_BROWSERS_PATH=/ms-playwright from base image)
 ENV OPENCLAW_STATE_DIR=/app/state
@@ -37,10 +37,12 @@ RUN LATEST_UBOL_URL=$(python3 -c "import urllib.request, json; res = urllib.requ
     unzip /tmp/ubol.zip -d /app/extensions/ubol && \
     rm /tmp/ubol.zip
 
-# Download and unzip the Open Source Video Downloader Extension from GitHub
-RUN curl -L -o /tmp/video_downloader.zip https://github.com/faridhafizh/video-downloader-ext/archive/refs/heads/master.zip && \
+# Download and unzip the Open Source Video Downloader Extension dynamically based on the repository's default branch
+# We use wildcards to handle folder renames (supporting main or master branches automatically)
+RUN DEFAULT_BRANCH=$(python3 -c "import urllib.request, json; res = urllib.request.urlopen('https://api.github.com/repos/faridhafizh/video-downloader-ext'); data = json.loads(res.read().decode()); print(data['default_branch'])") && \
+    curl -L -o /tmp/video_downloader.zip "https://github.com/faridhafizh/video-downloader-ext/archive/refs/heads/${DEFAULT_BRANCH}.zip" && \
     unzip /tmp/video_downloader.zip -d /app/extensions/ && \
-    mv /app/extensions/video-downloader-ext-master /app/extensions/videodownloader && \
+    mv /app/extensions/video-downloader-ext-* /app/extensions/videodownloader && \
     rm /tmp/video_downloader.zip
 
 # Place files in their correct folders
