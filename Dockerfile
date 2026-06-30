@@ -1,19 +1,11 @@
-# Use official Node.js runtime (Node 22 is recommended for OpenClaw)
-FROM node:22-slim
+# Use official Microsoft Playwright image (pre-installed Node, browsers, and libraries)
+FROM mcr.microsoft.com/playwright:v1.45.0-jammy
 
-# Set environment variables for non-root execution and browser paths
-ENV PLAYWRIGHT_BROWSERS_PATH=/app/playwright-cache
+# Set environment variables (inherits PLAYWRIGHT_BROWSERS_PATH=/ms-playwright from base image)
 ENV OPENCLAW_STATE_DIR=/app/state
 ENV PORT=7860
 
-# Install system dependencies:
-# - nginx: Reverse proxy
-# - git, curl, unzip: Setup helpers
-# - python3, python3-pip: For calculations and utilities
-# - ffmpeg: Required by yt-dlp to merge video streams (1080p+)
-# - sqlite3: To perform database chat cleanups
-# - gnupg: For GPG AES-256 backup encryption
-# - Playwright Chromium dependencies explicitly listed to avoid using Playwright's runtime sudo install script
+# Install required system tools (all browser libraries are already present in the base image)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nginx \
     git \
@@ -24,23 +16,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     sqlite3 \
     gnupg \
-    sudo \
-    libglib2.0-0 \
-    libnss3 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libdbus-1-3 \
-    libxcb1 \
-    libxkbcommon0 \
-    libxdamage1 \
-    libxcomposite1 \
-    libxrandr2 \
-    libgbm1 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libasound2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install yt-dlp (industry-standard command line video downloader)
@@ -53,14 +28,8 @@ WORKDIR /app
 RUN npm install -g openclaw@latest
 
 # Prepare directories and grant broad write permissions for random non-root container users (UID 1000)
-RUN mkdir -p /app/state /app/playwright-cache /app/extensions/ubol /app/extensions/videodownloader && \
+RUN mkdir -p /app/state /app/extensions/ubol /app/extensions/videodownloader && \
     chmod -R 777 /app /var/log/nginx /var/lib/nginx /etc/nginx
-
-# Install Playwright locally in /app so 'npx playwright install' executes successfully without missing project errors
-RUN npm install playwright
-
-# Install Playwright browser binary (dependencies already loaded above via apt-get)
-RUN npx playwright install chromium
 
 # Download and unzip uBlock Origin Lite (Manifest V3 Edition)
 RUN curl -L -o /tmp/ubol.zip https://github.com/uBlockOrigin/uBOL-home/releases/download/uBOL_0.1.26.11029/uBOL_0.1.26.11029.chromium.zip && \
