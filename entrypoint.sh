@@ -5,7 +5,8 @@ set -e
 
 echo "=== OpenClaw Hugging Face Space Bootloader ==="
 
-# Define OpenClaw state directory in writable space
+# Explicitly export environment variables to make them visible to all background loops and child scripts
+export BACKUP_PASSPHRASE
 export OPENCLAW_STATE_DIR=/app/state
 mkdir -p "$OPENCLAW_STATE_DIR"
 
@@ -20,6 +21,9 @@ if [ -f "$BACKUP_FILE" ]; then
             echo "Decryption successful. Restoring file structures..."
             tar -xzf /tmp/state-backup.tar.gz -C /
             rm -f /tmp/state-backup.tar.gz
+            
+            # Ensure full write permissions for random Hugging Face UID on restored files and database
+            chmod -R 777 "$OPENCLAW_STATE_DIR" || true
             echo "State files restored successfully."
         else
             echo "ERROR: Decryption of backup failed! Invalid passphrase. Starting with a fresh state."
@@ -81,17 +85,19 @@ else
     echo "WARNING: SearXNG modules not found. Skipping auto-start."
 fi
 
-# 5. Check if persistent state storage exists and restore configs
-if [ -f /app/openclaw.json ]; then
+# 5. Check if persistent config already exists; copy template only if missing
+# This preserves any runtime changes you make via the web dashboard.
+if [ ! -f "$OPENCLAW_STATE_DIR/openclaw.json" ] && [ -f /app/openclaw.json ]; then
     cp /app/openclaw.json "$OPENCLAW_STATE_DIR/openclaw.json"
+    chmod 777 "$OPENCLAW_STATE_DIR/openclaw.json" || true
 fi
 
 # 6. Start OpenClaw Gateway in the background (Port 18789)
 echo "Starting OpenClaw Gateway..."
 if command -v openclaw &>/dev/null; then
-    openclaw start &
+    openclaw gateway &
 elif [ -f /app/bin/openclaw ]; then
-    /app/bin/openclaw start &
+    /app/bin/openclaw gateway &
 else
     node /app/dist/index.js &
 fi
