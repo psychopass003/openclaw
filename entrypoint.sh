@@ -127,6 +127,22 @@ else
     node /app/dist/index.js &
 fi
 
+# 6.5. Start Device Auto-Approval Daemon
+# Automatically approves any incoming device pairing requests within 5 seconds,
+# making the web dashboard connection completely seamless.
+(
+    echo "Initializing Device Auto-Approval Daemon..."
+    sleep 15
+    while true; do
+        if command -v openclaw &>/dev/null; then
+            openclaw devices approve --latest &>/dev/null || true
+        elif [ -f /app/bin/openclaw ]; then
+            /app/bin/openclaw devices approve --latest &>/dev/null || true
+        fi
+        sleep 5
+    done
+) &
+
 # 7. Start Nginx in the foreground to keep container running and bind port 7860
 echo "Starting Nginx Reverse Proxy on port 7860..."
 exec nginx -g "daemon off;"
