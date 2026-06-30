@@ -1,12 +1,17 @@
 {
-  "llm": {
-    "provider": "mistral",
-    "apiKey": "${MISTRAL_API_KEY}",
-    "model": "mistral/mistral-large-latest",
-    "fallbackModels": [
-      "mistral/mistral-medium-latest",
-      "mistral/mistral-small-latest"
-    ]
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "mistral/mistral-large-latest"
+      }
+    }
+  },
+  "models": {
+    "providers": {
+      "mistral": {
+        "apiKey": "${MISTRAL_API_KEY}"
+      }
+    }
   },
   "plugins": {
     "allow": [
