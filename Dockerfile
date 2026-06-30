@@ -56,6 +56,9 @@ RUN npm install -g openclaw@latest
 RUN mkdir -p /app/state /app/playwright-cache /app/extensions/ubol /app/extensions/videodownloader && \
     chmod -R 777 /app /var/log/nginx /var/lib/nginx /etc/nginx
 
+# Install Playwright locally in /app so 'npx playwright install' executes successfully without missing project errors
+RUN npm install playwright
+
 # Install Playwright browser binary (dependencies already loaded above via apt-get)
 RUN npx playwright install chromium
 
