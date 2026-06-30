@@ -135,9 +135,9 @@ fi
     sleep 15
     while true; do
         if command -v openclaw &>/dev/null; then
-            openclaw devices approve --latest &>/dev/null || true
+            openclaw devices approve --latest || true
         elif [ -f /app/bin/openclaw ]; then
-            /app/bin/openclaw devices approve --latest &>/dev/null || true
+            /app/bin/openclaw devices approve --latest || true
         fi
         sleep 5
     done
