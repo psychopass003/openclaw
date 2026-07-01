@@ -29,8 +29,17 @@ WORKDIR /app
 # Upgrade Node.js inside the container to v22.19.0 to satisfy OpenClaw's engine dependency requirement
 RUN npm install -g n && n 22.19.0 && ln -sf /usr/local/bin/node /usr/bin/node
 
-# Install OpenClaw globally from the stable NPM registry
-RUN npm install -g openclaw@latest
+# Install OpenClaw globally from the stable NPM registry.
+#
+# PINNED (was @latest): an unpinned "latest" tag means every Space rebuild
+# could silently pull in a newer OpenClaw with a changed config schema or
+# gateway behavior - which is exactly how the strict openclaw.json schema
+# validation failure happened before. Pinning makes rebuilds reproducible:
+# the image only moves to a newer OpenClaw when this line is deliberately
+# bumped, at which point openclaw.json can be checked against
+# https://docs.openclaw.ai/gateway/configuration-reference before rebuilding.
+# Bump deliberately with: npm view openclaw versions (or check npmjs.com/package/openclaw)
+RUN npm install -g openclaw@2026.6.9
 
 # Prepare directories needed at *runtime* by the non-root UID (Hugging Face Docker
 # Spaces run as a fixed UID 1000, per HF's own Docker Spaces docs - not actually
