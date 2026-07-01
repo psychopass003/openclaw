@@ -212,7 +212,7 @@ if [ "${OPENCLAW_AUTO_APPROVE_FIRST_PAIRING:-false}" = "true" ]; then
         echo "WARNING: any pairing request that reaches this Space while this"
         echo "is active gets auto-approved. Set the secret back to false and"
         echo "restart the Space once you're done pairing."
-        sleep 15
+        sleep 8
         loop_count=0
         while true; do
             if command -v openclaw &>/dev/null; then
@@ -228,17 +228,17 @@ if [ "${OPENCLAW_AUTO_APPROVE_FIRST_PAIRING:-false}" = "true" ]; then
                     yes | /app/bin/openclaw devices approve "$request_id" || true
                 fi
             fi
-            # Loud reminder roughly every 10 minutes (120 * 5s) so this stays
+            # Loud reminder roughly every 10 minutes (300 * 2s) so this stays
             # visible in the Logs tab instead of being forgotten about for days.
             loop_count=$((loop_count + 1))
-            if [ $((loop_count % 120)) -eq 0 ]; then
+            if [ $((loop_count % 300)) -eq 0 ]; then
                 echo "############################################################"
                 echo "# REMINDER: Device auto-approval is STILL ACTIVE."
                 echo "# Set OPENCLAW_AUTO_APPROVE_FIRST_PAIRING=false and restart"
                 echo "# the Space once you're done pairing new devices."
                 echo "############################################################"
             fi
-            sleep 5
+            sleep 2
         done
     ) &
 else
