@@ -17,6 +17,114 @@ insecure — it wasn't that login was broken, it's that it was being bypassed.
 
 ---
 
+## Follow-up — 1 Jul 2026 (2): still "Could not connect" after the fixes below
+
+Two more things, found after the item-10/11 fixes further down were already live.
+
+### 12. Nginx's forwarded-client headers trip an upstream OpenClaw WS bug
+**File:** `nginx.conf`
+
+Item 2 (below) fixed X-Forwarded-For spoofing by overwriting it with Nginx's
+own `$remote_addr` instead of appending to it. That fix is/was correct, but it
+ran into a separate, currently-open OpenClaw bug:
+[openclaw/openclaw#71103](https://github.com/openclaw/openclaw/issues/71103)
+(closed upstream as "not planned"). Since OpenClaw v2026.4.22, the Gateway
+treats **any** request carrying `X-Forwarded-For` / `X-Real-IP` /
+`X-Forwarded-Proto` as non-local — even from `127.0.0.1`, and even when that
+IP is listed in `gateway.trustedProxies`. The `trustedProxies` check that's
+supposed to cover exactly this case is present in the code but never actually
+reached. Effect: the dashboard's own WebSocket connection (Nginx → Gateway
+over loopback) gets misclassified as remote, gets routed into a device-pairing
+challenge that can't complete over this path, and the browser just reports a
+generic "Could not connect" / connection failure — no useful error surfaces.
+
+**Fix:** `nginx.conf` no longer sends `X-Forwarded-For`, `X-Real-IP`, or
+`X-Forwarded-Proto` to the Gateway at all. We don't use
+`gateway.auth.mode: "trusted-proxy"` (we use token auth), so the Gateway never
+needed real client IPs for authentication purposes here. `openclaw.json` keeps
+`gateway.trustedProxies: ["127.0.0.1"]` in place (harmless) so this starts
+working again automatically if OpenClaw fixes #71103 upstream. Traded off:
+the Gateway's `gateway.auth.rateLimit` failed-auth limiter will see all
+traffic as coming from `127.0.0.1` instead of real visitor IPs. This is
+narrower than it sounds — OpenClaw's own docs state that browser
+WebSocket/Control-UI auth attempts are *always* rate-limited with loopback
+exemption disabled and bucketed per `Origin` rather than per IP, specifically
+so this scenario doesn't become an open door — and every request here is
+still gated by Nginx Basic Auth first regardless.
+
+### 13. If you're using a third-party/standalone "connect to any Gateway" page
+If you're pasting the WebSocket URL and Gateway Token into a *separate*
+generic OpenClaw connector page (not this Space's own built-in dashboard,
+i.e. not `https://johnwick003-openclaw.hf.space/chat?...`), that page's
+own web origin needs to be added to
+`gateway.controlUi.allowedOrigins` in `openclaw.json`, or the Gateway will
+refuse the connection the same way — an origin check applies to any browser
+origin that isn't loopback, RFC1918/LAN, `.local`, or `.ts.net`, and a
+third-party page's origin is none of those. The simplest fix is to just use
+this Space's own dashboard at your `SPACE_URL` directly, which already has
+its origin allowlisted and is confirmed working in the Space logs. If you
+specifically want to keep using an external connector page, tell me its
+origin (`https://<that-site>`) and I'll add it to `allowedOrigins` for you.
+
+### 14. `openclaw@latest` pinned to an exact version
+**File:** `Dockerfile`
+
+Previously flagged as "left as-is" under Lower priority/hygiene below. An
+unpinned `latest` tag was the root cause of the original strict schema
+validation failure (a Space rebuild silently picked up a newer OpenClaw with
+a changed config schema, and the old `openclaw.json` no longer validated).
+Now pinned to a specific version (`openclaw@2026.6.9` at time of writing).
+Bump it deliberately when you want a newer OpenClaw, checking
+`openclaw.json` against the current [configuration reference](https://docs.openclaw.ai/gateway/configuration-reference)
+first.
+
+---
+
+## Follow-up — 1 Jul 2026: WebSocket "Could not connect" + pairing window
+
+Two changes made after the fixes below were already deployed and running.
+
+### 10. Nginx Basic Auth was also (intermittently) blocking the WebSocket handshake
+**File:** `nginx.conf`
+
+The dashboard's live connection to the Gateway is a WebSocket
+(`wss://…hf.space`), and `auth_basic` was set at the `server` level, so it
+applied to that handshake too. Browsers don't reliably attach cached HTTP
+Basic Auth credentials to a `new WebSocket()` connection the way they do to a
+normal page load, `<script>` tag, or `fetch()` call — and unlike those, a WS
+handshake that comes back with a 401 is not transparently retried with
+credentials. It just fails, and the WebSocket spec hides the real HTTP status
+from JS, so the only thing the dashboard could report was `disconnected
+(1006): no reason`. This lines up with the raw access log from the Space: the
+initial page and its JS/CSS assets loaded fine (`200`, user `admin`), but
+`manifest.webmanifest`, `favicon.svg`, and `control-ui-config.json` all got
+`401 no user/password was provided` in that same browser session — the same
+credential-attachment gap, just on request types the browser silently retries
+and eventually succeeds on, which a WebSocket handshake doesn't do.
+
+**Fix:** added a `map` on `$http_upgrade` so *only* genuine WebSocket upgrade
+requests skip the Nginx Basic Auth check; every normal request still needs
+it. The WS channel stays protected by the Gateway's own token auth
+(`gateway.auth.mode: "token"`), which this doesn't touch or weaken.
+
+### 11. Device auto-approval window is no longer time-boxed
+**File:** `entrypoint.sh`
+
+Previously, turning on `OPENCLAW_AUTO_APPROVE_FIRST_PAIRING` gave exactly 10
+minutes from container boot to pair a device, even if the secret was still
+`true` — a restart-and-race-the-clock flow every time, including to pair a
+second device later on. It now stays active for as long as the secret is
+`true`, with a reminder printed to the Logs tab roughly every 10 minutes so
+it's hard to forget it's on. Net effect: the window of exposure is now
+whatever you leave the secret set for, rather than a hard-capped 10 minutes —
+but it's already sitting behind the Basic Auth + WebSocket fix above, matching
+the threat model in the Bottom line: anyone who reaches the pairing screen at
+all already needed Basic Auth. Still set it back to `false` (and let the
+Space restart) once you're done pairing — this trades a fixed timer for
+relying on you to flip it off, not for "always on."
+
+---
+
 ## Critical
 
 ### 1. Device pairing was auto-approved for everyone, forever
@@ -149,10 +257,12 @@ instead of continuing with bad data.
 - **No setup documentation existed.** `README.md` was just the Space metadata
   header. Rewrote it with the required secrets, the pairing workflow, and a link to
   this file.
-- **`openclaw@latest` / extensions tracked "latest" with no pinning.** Left as-is —
-  this looks intentional (you likely want current OpenClaw versions), but it does
-  mean a build today can behave differently from a build next week. Worth knowing,
-  not changed.
+- **`openclaw@latest` was tracked with no pinning.** Now fixed — see item 14
+  above. The two browser extensions (uBlock Origin Lite, video downloader)
+  still track their own "latest GitHub release" / "default branch" dynamically;
+  left as-is since those are lower-stakes (browser extensions, not the Gateway
+  itself) and `curl -f` already makes a failed/renamed asset fail the build
+  loudly instead of silently shipping something broken.
 
 ---
 
