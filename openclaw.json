@@ -16,8 +16,7 @@
   "plugins": {
     "allow": [
       "browser",
-      "duckduckgo",
-      "memory"
+      "duckduckgo"
     ]
   },
   "browser": {
