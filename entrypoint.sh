@@ -198,36 +198,54 @@ fi
 #
 # Optional convenience (off by default, opt-in only): set
 # OPENCLAW_AUTO_APPROVE_FIRST_PAIRING=true as a Space secret to auto-approve
-# pairing requests for a short window after a fresh boot only. This still
-# widens the attack surface during that window - only enable it briefly while
-# you personally connect for the first time, then unset it and restart.
-AUTO_APPROVE_WINDOW_SECONDS=600
+# pairing requests. This is no longer time-boxed to a few minutes after boot -
+# it stays active for as long as the flag is true, so you're never racing a
+# clock to pair a device. Changing a Space secret still triggers a Hugging
+# Face restart either way, so "true"/"false" remain the only two states -
+# there's no silent expiry in between to get caught out by. This still widens
+# the attack surface the whole time it's on, so turn it back to false (another
+# restart) once you're done pairing whatever device you meant to pair.
 if [ "${OPENCLAW_AUTO_APPROVE_FIRST_PAIRING:-false}" = "true" ]; then
     (
-        echo "Initializing TIME-BOXED Device Auto-Approval (${AUTO_APPROVE_WINDOW_SECONDS}s)..."
-        echo "WARNING: any pairing request received in this window will be auto-approved."
+        echo "Initializing Device Auto-Approval (ACTIVE for as long as"
+        echo "OPENCLAW_AUTO_APPROVE_FIRST_PAIRING=true - no fixed time window)..."
+        echo "WARNING: any pairing request that reaches this Space while this"
+        echo "is active gets auto-approved. Set the secret back to false and"
+        echo "restart the Space once you're done pairing."
         sleep 15
-        end_time=$(( $(date +%s) + AUTO_APPROVE_WINDOW_SECONDS ))
-        while [ "$(date +%s)" -lt "$end_time" ]; do
+        loop_count=0
+        while true; do
             if command -v openclaw &>/dev/null; then
                 request_id=$(openclaw devices approve --latest 2>/dev/null | grep -E -o '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}' | head -n 1)
                 if [ -n "$request_id" ]; then
-                    echo "Auto-Approval window: approving pairing request $request_id"
+                    echo "Auto-approval: approving pairing request $request_id"
                     yes | openclaw devices approve "$request_id" || true
                 fi
             elif [ -f /app/bin/openclaw ]; then
                 request_id=$(/app/bin/openclaw devices approve --latest 2>/dev/null | grep -E -o '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}' | head -n 1)
                 if [ -n "$request_id" ]; then
-                    echo "Auto-Approval window: approving pairing request $request_id"
+                    echo "Auto-approval: approving pairing request $request_id"
                     yes | /app/bin/openclaw devices approve "$request_id" || true
                 fi
             fi
+            # Loud reminder roughly every 10 minutes (120 * 5s) so this stays
+            # visible in the Logs tab instead of being forgotten about for days.
+            loop_count=$((loop_count + 1))
+            if [ $((loop_count % 120)) -eq 0 ]; then
+                echo "############################################################"
+                echo "# REMINDER: Device auto-approval is STILL ACTIVE."
+                echo "# Set OPENCLAW_AUTO_APPROVE_FIRST_PAIRING=false and restart"
+                echo "# the Space once you're done pairing new devices."
+                echo "############################################################"
+            fi
             sleep 5
         done
-        echo "Device auto-approval window closed. New devices now require manual approval."
     ) &
 else
     echo "Device auto-approval is disabled (recommended default). Approve new devices manually."
+    echo "If the Control UI shows 'Device pairing required' when you connect, that's"
+    echo "expected on a fresh browser/session with no CLI access to this container -"
+    echo "see README.md -> 'Pairing a new device' for the one-time fix."
 fi
 
 # 9. Start Nginx in the foreground to keep container running and bind port 7860
