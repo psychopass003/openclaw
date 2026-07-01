@@ -1,24 +1,44 @@
-# Hugging Face Space Git Exclusions (Exceptions)
+# Hugging Face Space Git Exclusions
+
+# Runtime state - chat history, SQLite DB, .htpasswd, paired-device list,
+# and the live copy of openclaw.json. Never committed; lives only in the
+# running container.
 state/
+
+# Encrypted nightly state backup. Stays local to the container so a plain
+# restart (not a rebuild) can restore from it. Deliberately excluded even
+# though it's GPG-encrypted, since this repo is public.
 state-backup.tar.gz*
 *.gpg
+
+# SQLite files, in case the DB path is ever pointed outside state/
 openclaw.db
 openclaw.db-journal
 openclaw.db-wal
+
+# Secrets/credentials - these should only ever exist as Space secrets
 .env
 .env.local
 *.key
 *.pem
 *.token
 *secrets*
+
+# Logs
 logs/
 *.log
+
+# Temp files
 tmp/
-/temp
+temp/
+
+# Node
 node_modules/
 dist/
 build/
 .npm
 .pnpm-debug.log
+
+# OS cruft
 .DS_Store
 Thumbs.db
