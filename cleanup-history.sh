@@ -53,21 +53,24 @@ rm -rf /tmp/* 2>/dev/null || true
 BACKUP_PASSPHRASE_VAL="${BACKUP_PASSPHRASE}"
 if [ -n "$BACKUP_PASSPHRASE_VAL" ]; then
     echo "Creating GPG-encrypted state backup..." >> "$LOG_FILE"
-    
+
     # Secure clean copy to avoid open file descriptor locks
     rm -rf /tmp/state_backup_temp
     mkdir -p /tmp/state_backup_temp/app
     cp -Rp /app/state /tmp/state_backup_temp/app/
-    
+
     # Tar the copy and capture exits safely (storing as app/state path)
     if tar -czf /tmp/state-backup.tar.gz -C /tmp/state_backup_temp app/state; then
-        # Encrypt the tarball
-        gpg --symmetric --batch --yes --passphrase "$BACKUP_PASSPHRASE_VAL" -o /app/state-backup.tar.gz.gpg /tmp/state-backup.tar.gz
+        # Encrypt the tarball. Passphrase is piped over stdin (--passphrase-fd 0)
+        # instead of passed as a CLI argument - command-line arguments are visible
+        # to any other process in this container via `ps`/`/proc/<pid>/cmdline`,
+        # so this keeps the passphrase out of that surface.
+        printf '%s' "$BACKUP_PASSPHRASE_VAL" | gpg --symmetric --batch --yes --pinentry-mode loopback --passphrase-fd 0 -o /app/state-backup.tar.gz.gpg /tmp/state-backup.tar.gz
         echo "Encrypted backup successfully created at /app/state-backup.tar.gz.gpg" >> "$LOG_FILE"
     else
         echo "ERROR: Archiving state folder failed." >> "$LOG_FILE"
     fi
-    
+
     # Cleanup temp directory and tarball
     rm -rf /tmp/state-backup.tar.gz /tmp/state_backup_temp
 else

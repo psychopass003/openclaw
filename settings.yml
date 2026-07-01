@@ -1,12 +1,20 @@
 # SearXNG configuration settings.yml
 # Securely tuned for Hugging Face container constraints
+#
+# NOTE: secret_key below is a placeholder. entrypoint.sh overwrites it with a
+# freshly generated random value on every container boot (Flask/SearXNG uses
+# this key to sign session cookies - shipping one fixed value baked into a
+# public Docker image/repo means every deployment built from this template
+# would share the same key). SearXNG itself is bound to 127.0.0.1 only and is
+# never exposed through Nginx, so this is defense-in-depth rather than a
+# direct external exposure fix.
 
 use_default_settings: true
 
 server:
   port: 8888
   bind_address: "127.0.0.1"   # Strictly bind to localhost to prevent external access
-  secret_key: "default-searxng-local-secret-for-openclaw"  # Place standard secret key
+  secret_key: "__RUNTIME_GENERATED_SECRET__"  # overwritten at container startup, see entrypoint.sh
   limiter: false              # Disable rate limiter for local gateway requests
 
 search:

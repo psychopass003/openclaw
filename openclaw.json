@@ -43,15 +43,19 @@
   "gateway": {
     "mode": "local",
     "port": 18789,
+    "bind": "loopback",
     "auth": {
+      "mode": "token",
       "token": "${OPENCLAW_GATEWAY_TOKEN}"
     },
+    "trustedProxies": [
+      "127.0.0.1"
+    ],
     "controlUi": {
       "allowedOrigins": [
         "${SPACE_URL}",
         "https://johnwick003-openclaw.hf.space"
-      ],
-      "allowInsecureAuth": true
+      ]
     }
   }
 }
