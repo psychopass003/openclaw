@@ -68,35 +68,55 @@ ideas. For OpenClaw's own guidance, see their
 [security guide](https://docs.openclaw.ai/gateway/security) and
 [exposure runbook](https://docs.openclaw.ai/gateway/security/exposure-runbook).
 
-## Connecting
-
-Use this Space's own dashboard directly — open `https://<your-space>.hf.space`
-in a browser and log in with your Basic Auth credentials, then your
-`OPENCLAW_GATEWAY_TOKEN` when the Control UI asks for it. Its origin is
-already allowlisted in `openclaw.json` and this path is confirmed working.
-
-If you instead use a separate/third-party "paste in a WebSocket URL + token"
-connector page, that page's own origin needs to be added to
-`gateway.controlUi.allowedOrigins` in `openclaw.json` first, or the Gateway
-will reject the connection with something that looks like a generic
-connection failure. See `SECURITY-NOTES.md` item 13.
-
-## Updating OpenClaw
-
-The `Dockerfile` pins an exact OpenClaw npm version rather than `latest`, so
-rebuilds are reproducible and don't silently pick up a breaking config-schema
-change. To upgrade deliberately:
-
-1. Check the [configuration reference](https://docs.openclaw.ai/gateway/configuration-reference)
-   and [changelog](https://github.com/openclaw/openclaw/releases) for the new
-   version against the current `openclaw.json`.
-2. Bump the version in the `RUN npm install -g openclaw@...` line in `Dockerfile`.
-3. Push and watch the Space's **Logs** tab on the next build/boot for schema
-   validation errors.
-
 ## After deploying
 
 Check the Space's **Logs** tab on first boot for two things:
 - A `WARNING: OPENCLAW_GATEWAY_TOKEN is not set` banner (means you still need
   to add that secret).
 - The generated Basic Auth credentials, if you didn't set your own.
+
+## Troubleshooting
+
+**"Am I supposed to log in twice?"** Yes, and they're not in conflict — they're
+two separate, independent gates, checked in order:
+
+1. **Nginx Basic Auth** (the browser's native login popup) — required to load
+   *anything* from this Space at all, including the login screen itself.
+2. **OpenClaw's Gateway Token** — pasted into the Control UI's own connect
+   form, a completely separate check the Gateway itself makes once your
+   browser is already past #1.
+
+Each protects a different layer, the same way a building keycard and your
+laptop password aren't "in conflict" even though you use both. Neither one
+being present makes the other misbehave.
+
+**Logs full of repeating `no user/password was provided for basic
+authentication` for `manifest.webmanifest`, `favicon.svg`, `sw.js`, or
+`control-ui-config.json`?** That's a browser quirk, not a misconfiguration —
+Chrome/Firefox fetch those specific files through internal codepaths that
+don't attach cached Basic Auth credentials, even to an already-authenticated
+page. `nginx.conf` exempts exactly those non-sensitive paths from the outer
+login so this stops recurring; everything that actually matters (`/`,
+`/chat`, the WebSocket) still requires it.
+
+**Logs full of `client closed connection while waiting for request` from an
+address like `10.112.183.5`, once a second, forever?** That's Hugging Face's
+own infrastructure health-checking the container's port to confirm it's
+alive — not a client, not an error, not something to fix. `error_log` is set
+to `warn` so this stops cluttering the tab.
+
+**"Device pairing required" after entering the Gateway Token?** That's not
+related to Basic Auth or the token at all — it's a third, separate OpenClaw
+security gate (device pairing) that's working as intended. See "Pairing a new
+device" above; you need `OPENCLAW_AUTO_APPROVE_FIRST_PAIRING=true` for one
+session since this container has no CLI access to approve it manually.
+
+**Considered merging the two logins into one (`gateway.auth.mode:
+"trusted-proxy"`)?** Yes — OpenClaw supports it, and it would remove the
+separate Gateway Token step entirely. Not used here: it requires every
+request, including the WebSocket handshake, to carry Basic Auth credentials,
+and browsers are documented to attach those to a native WebSocket handshake
+unreliably (Firefox in particular). That trade would risk swapping today's
+one-time pairing screen for an intermittent, harder-to-diagnose connection
+failure — worse, not better. Revisit only if OpenClaw ships a way to satisfy
+trusted-proxy identity without gating the WS upgrade itself.
