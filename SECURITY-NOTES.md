@@ -17,69 +17,6 @@ insecure — it wasn't that login was broken, it's that it was being bypassed.
 
 ---
 
-## Follow-up — 1 Jul 2026 (2): still "Could not connect" after the fixes below
-
-Two more things, found after the item-10/11 fixes further down were already live.
-
-### 12. Nginx's forwarded-client headers trip an upstream OpenClaw WS bug
-**File:** `nginx.conf`
-
-Item 2 (below) fixed X-Forwarded-For spoofing by overwriting it with Nginx's
-own `$remote_addr` instead of appending to it. That fix is/was correct, but it
-ran into a separate, currently-open OpenClaw bug:
-[openclaw/openclaw#71103](https://github.com/openclaw/openclaw/issues/71103)
-(closed upstream as "not planned"). Since OpenClaw v2026.4.22, the Gateway
-treats **any** request carrying `X-Forwarded-For` / `X-Real-IP` /
-`X-Forwarded-Proto` as non-local — even from `127.0.0.1`, and even when that
-IP is listed in `gateway.trustedProxies`. The `trustedProxies` check that's
-supposed to cover exactly this case is present in the code but never actually
-reached. Effect: the dashboard's own WebSocket connection (Nginx → Gateway
-over loopback) gets misclassified as remote, gets routed into a device-pairing
-challenge that can't complete over this path, and the browser just reports a
-generic "Could not connect" / connection failure — no useful error surfaces.
-
-**Fix:** `nginx.conf` no longer sends `X-Forwarded-For`, `X-Real-IP`, or
-`X-Forwarded-Proto` to the Gateway at all. We don't use
-`gateway.auth.mode: "trusted-proxy"` (we use token auth), so the Gateway never
-needed real client IPs for authentication purposes here. `openclaw.json` keeps
-`gateway.trustedProxies: ["127.0.0.1"]` in place (harmless) so this starts
-working again automatically if OpenClaw fixes #71103 upstream. Traded off:
-the Gateway's `gateway.auth.rateLimit` failed-auth limiter will see all
-traffic as coming from `127.0.0.1` instead of real visitor IPs. This is
-narrower than it sounds — OpenClaw's own docs state that browser
-WebSocket/Control-UI auth attempts are *always* rate-limited with loopback
-exemption disabled and bucketed per `Origin` rather than per IP, specifically
-so this scenario doesn't become an open door — and every request here is
-still gated by Nginx Basic Auth first regardless.
-
-### 13. If you're using a third-party/standalone "connect to any Gateway" page
-If you're pasting the WebSocket URL and Gateway Token into a *separate*
-generic OpenClaw connector page (not this Space's own built-in dashboard,
-i.e. not `https://johnwick003-openclaw.hf.space/chat?...`), that page's
-own web origin needs to be added to
-`gateway.controlUi.allowedOrigins` in `openclaw.json`, or the Gateway will
-refuse the connection the same way — an origin check applies to any browser
-origin that isn't loopback, RFC1918/LAN, `.local`, or `.ts.net`, and a
-third-party page's origin is none of those. The simplest fix is to just use
-this Space's own dashboard at your `SPACE_URL` directly, which already has
-its origin allowlisted and is confirmed working in the Space logs. If you
-specifically want to keep using an external connector page, tell me its
-origin (`https://<that-site>`) and I'll add it to `allowedOrigins` for you.
-
-### 14. `openclaw@latest` pinned to an exact version
-**File:** `Dockerfile`
-
-Previously flagged as "left as-is" under Lower priority/hygiene below. An
-unpinned `latest` tag was the root cause of the original strict schema
-validation failure (a Space rebuild silently picked up a newer OpenClaw with
-a changed config schema, and the old `openclaw.json` no longer validated).
-Now pinned to a specific version (`openclaw@2026.6.9` at time of writing).
-Bump it deliberately when you want a newer OpenClaw, checking
-`openclaw.json` against the current [configuration reference](https://docs.openclaw.ai/gateway/configuration-reference)
-first.
-
----
-
 ## Follow-up — 1 Jul 2026: WebSocket "Could not connect" + pairing window
 
 Two changes made after the fixes below were already deployed and running.
@@ -122,6 +59,92 @@ the threat model in the Bottom line: anyone who reaches the pairing screen at
 all already needed Basic Auth. Still set it back to `false` (and let the
 Space restart) once you're done pairing — this trades a fixed timer for
 relying on you to flip it off, not for "always on."
+
+---
+
+## Follow-up — 1 Jul 2026 (cont.): repeating 401s, log noise, and "is this two logins conflicting?"
+
+Prompted by a fresh boot log showing the same `manifest.webmanifest` /
+`favicon.svg` / `control-ui-config.json` 401s repeating continuously for the
+full ~10-minute capture, across three different client IPs, alongside a
+"Device pairing required" screen after entering the Gateway Token. Read as
+"two logins sending conflicting requests" — worth being precise about, since
+they're not actually in conflict.
+
+**Correction to Follow-up #10 above:** that entry assumed the manifest/
+favicon/config 401s were "the same credential-attachment gap" as the
+WebSocket issue and "eventually succeed on retry," the way other assets do.
+The new log disproves the second half of that: across the full capture,
+`manifest.webmanifest`, `favicon.svg`, `favicon-32.png`, and
+`control-ui-config.json` are 401 on *every single occurrence* — never a 200 —
+while `/`, `/chat`, and `/assets/*.js|css` do show the normal 401-then-200
+pattern once the browser has a valid credential to attach. The mechanism
+diagnosis was right; the "it resolves itself" part wasn't. Fixed below
+instead of leaving it as accepted log noise.
+
+### 12. Static/config sub-resources never carry Basic Auth credentials, so they never succeeded
+**File:** `nginx.conf`
+
+Confirmed against the boot log: every 401 for `manifest.webmanifest`,
+`favicon.svg`, `favicon-32.png`, and `control-ui-config.json` in the capture
+— none ever got a 200. This matches long-documented (largely WONTFIX'd)
+Chromium/Firefox behavior: the PWA manifest and favicon are fetched through
+browser-internal codepaths that don't attach cached HTTP Basic Auth even to
+an already-authenticated same-origin realm, and a Service Worker's own
+background fetches (update checks, precache) can fire with no page attached
+to inherit credentials from. `control-ui-config.json` is fetched by the
+Control UI's own JS before the user has entered anything (by design, per
+OpenClaw's own docs on how the connect screen bootstraps).
+
+**Fix:** added an exact-match `location` block exempting only these specific
+non-sensitive paths (favicons, manifest, `sw.js`, `control-ui-config.json`,
+`robots.txt`) from `auth_basic`, via `auth_basic off;`. None of them
+authenticate, execute, or return anything sensitive. `/`, `/chat`, and the
+WebSocket endpoint are untouched and still require Basic Auth (or, for the
+WS upgrade specifically, the Gateway's own token auth per the Follow-up #10
+map).
+
+### 13. error_log noise from Hugging Face's own health checks
+**File:** `nginx.conf`
+
+The `10.112.183.5 ... client closed connection while waiting for request`
+lines repeating once a second for the entire capture are Hugging Face's own
+container health-checker opening a raw TCP connection to port 7860 and
+closing it without sending a request — not a client, not an error. At
+nginx's `info` log level this gets logged every time, along with routine
+"client closed keepalive connection" notices, burying the one line per
+request that's actually diagnostic.
+
+**Fix:** `error_log` level lowered from `info` to `warn`. Basic Auth failures
+are logged by nginx's auth module at `error` severity (above `warn`), so
+those still show; `access_log` (the per-request status-code lines) is a
+separate stream and unaffected either way.
+
+### 14. Investigated: `gateway.auth.mode: "trusted-proxy"` to merge both logins into one — not applied
+
+OpenClaw supports delegating Gateway auth entirely to an authenticating
+reverse proxy via `gateway.auth.mode: "trusted-proxy"`, with identity passed
+through a header (e.g. `X-Forwarded-User`, settable here from nginx's
+`$remote_user` after a successful Basic Auth check). Per OpenClaw's docs,
+this mode also lets Control UI WebSocket sessions connect *without* device
+pairing — which would have collapsed this deployment's two logins (Basic
+Auth + Gateway Token) and the pairing screen into a single Basic Auth login,
+directly addressing the "why two logins" question at the root.
+
+**Not applied**, for one specific reason: trusted-proxy mode requires the
+identity header on *every* request reaching the Gateway, including the
+WebSocket upgrade itself — meaning the WS handshake would need to carry a
+valid Basic Auth `Authorization` header directly, with no fallback. That's
+exactly the request type Follow-up #10 above documents browsers as
+unreliable at attaching cached Basic Auth credentials to (Firefox
+specifically is documented to reuse stale cached credentials across
+WebSocket reconnects, causing roughly every other connection attempt to
+fail). Switching now would risk trading today's one-time, clearly-labeled
+pairing screen for an intermittent, hard-to-diagnose WS connection failure —
+a worse failure mode, even though the steady-state UX would be nicer. Left
+on `gateway.auth.mode: "token"` (current, working) instead. Revisit if
+OpenClaw ships a way to satisfy trusted-proxy identity without gating the WS
+upgrade request itself.
 
 ---
 
@@ -257,12 +280,10 @@ instead of continuing with bad data.
 - **No setup documentation existed.** `README.md` was just the Space metadata
   header. Rewrote it with the required secrets, the pairing workflow, and a link to
   this file.
-- **`openclaw@latest` was tracked with no pinning.** Now fixed — see item 14
-  above. The two browser extensions (uBlock Origin Lite, video downloader)
-  still track their own "latest GitHub release" / "default branch" dynamically;
-  left as-is since those are lower-stakes (browser extensions, not the Gateway
-  itself) and `curl -f` already makes a failed/renamed asset fail the build
-  loudly instead of silently shipping something broken.
+- **`openclaw@latest` / extensions tracked "latest" with no pinning.** Left as-is —
+  this looks intentional (you likely want current OpenClaw versions), but it does
+  mean a build today can behave differently from a build next week. Worth knowing,
+  not changed.
 
 ---
 
