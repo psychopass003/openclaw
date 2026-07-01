@@ -38,15 +38,20 @@ token. Normally you'd approve it with `openclaw devices approve <id>` on the
 machine running the Gateway.
 
 Standard Hugging Face Docker Spaces don't give you a shell inside the running
-container, so to approve your *own* first connection:
+container, so to approve your *own* connections:
 
-1. Set `OPENCLAW_AUTO_APPROVE_FIRST_PAIRING=true` as a Space secret and restart.
-2. Within 10 minutes, open the Space and connect (enter your `OPENCLAW_GATEWAY_TOKEN`
-   when prompted).
-3. Unset `OPENCLAW_AUTO_APPROVE_FIRST_PAIRING` and restart again.
+1. Set `OPENCLAW_AUTO_APPROVE_FIRST_PAIRING=true` as a Space secret (this
+   restarts the Space).
+2. Open the Space and connect (enter your `OPENCLAW_GATEWAY_TOKEN` when
+   prompted). This isn't time-boxed — pair whichever of your own devices you
+   need to in this session, no clock to race.
+3. Set `OPENCLAW_AUTO_APPROVE_FIRST_PAIRING` back to `false` (or delete it)
+   so the Space restarts again with it off.
 
-Leave it unset the rest of the time — while it's `true`, anyone else who
-connects during that window gets approved too.
+Leave it `false` the rest of the time — while it's `true`, anyone else who
+reaches the pairing screen gets approved too. The Space's **Logs** tab prints
+a reminder roughly every 10 minutes while auto-approval is active, so it's
+hard to forget it's still on.
 
 ## Security model
 
@@ -62,6 +67,32 @@ previous version of these files and what changed, plus further hardening
 ideas. For OpenClaw's own guidance, see their
 [security guide](https://docs.openclaw.ai/gateway/security) and
 [exposure runbook](https://docs.openclaw.ai/gateway/security/exposure-runbook).
+
+## Connecting
+
+Use this Space's own dashboard directly — open `https://<your-space>.hf.space`
+in a browser and log in with your Basic Auth credentials, then your
+`OPENCLAW_GATEWAY_TOKEN` when the Control UI asks for it. Its origin is
+already allowlisted in `openclaw.json` and this path is confirmed working.
+
+If you instead use a separate/third-party "paste in a WebSocket URL + token"
+connector page, that page's own origin needs to be added to
+`gateway.controlUi.allowedOrigins` in `openclaw.json` first, or the Gateway
+will reject the connection with something that looks like a generic
+connection failure. See `SECURITY-NOTES.md` item 13.
+
+## Updating OpenClaw
+
+The `Dockerfile` pins an exact OpenClaw npm version rather than `latest`, so
+rebuilds are reproducible and don't silently pick up a breaking config-schema
+change. To upgrade deliberately:
+
+1. Check the [configuration reference](https://docs.openclaw.ai/gateway/configuration-reference)
+   and [changelog](https://github.com/openclaw/openclaw/releases) for the new
+   version against the current `openclaw.json`.
+2. Bump the version in the `RUN npm install -g openclaw@...` line in `Dockerfile`.
+3. Push and watch the Space's **Logs** tab on the next build/boot for schema
+   validation errors.
 
 ## After deploying
 
