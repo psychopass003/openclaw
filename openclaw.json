@@ -47,12 +47,6 @@
       "mode": "token",
       "token": "${OPENCLAW_GATEWAY_TOKEN}"
     },
-    // NOTE: as of this build, OpenClaw has an upstream bug (openclaw/openclaw#71103,
-    // closed "not planned") that ignores this trustedProxies allowlist for WS-locality
-    // classification whenever a request carries X-Forwarded-For/X-Real-IP/X-Forwarded-Proto,
-    // regardless of whether the IP matches. nginx.conf works around this by simply not
-    // sending those headers to the Gateway, so this setting is currently inert - kept here
-    // so it starts working again automatically if/when OpenClaw fixes #71103 upstream.
     "trustedProxies": [
       "127.0.0.1"
     ],
